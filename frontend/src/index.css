@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium leading-tight;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500/50;
+  }
+
+  .btn-secondary {
+    @apply bg-teal-600 hover:bg-teal-700 text-white focus:ring-teal-500/50;
+  }
+
+  .btn-accent {
+    @apply bg-purple-600 hover:bg-purple-700 text-white focus:ring-purple-500/50;
+  }
+
+  .card {
+    @apply bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden;
+  }
+
+  .form-input {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500;
+  }
+
+  .input-error {
+    @apply border-red-500 focus:ring-red-500/50 focus:border-red-500;
+  }
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease-out;
+}
+
+.transition-scale {
+  transition: transform 0.2s ease-in-out;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
