@@ -18,10 +18,8 @@ export default function PlagiarismCheck() {
   const [error, setError] = useState(null);
   const token = localStorage.getItem("token");
 
-  // Show all submissions if no section selected, else filter by section
-  const filteredSubmissions = !selectedSection
-    ? submissions
-    : submissions.filter(s => String(s.studentId?.section) === String(selectedSection));
+  // Show all submissions for the assignment - section badge on each card shows the class
+  const filteredSubmissions = submissions;
 
   // Fetch all unique sections from students
   useEffect(() => {
@@ -99,7 +97,10 @@ export default function PlagiarismCheck() {
           }
         );
         setSubmissions(res.data);
-        console.log(submissions);
+        console.log("📦 Submissions loaded:", res.data.length, "items");
+        res.data.forEach(s => {
+          console.log(`  👤 ${s.studentId?.name} | section: "${s.studentId?.section}" | typeof: ${typeof s.studentId?.section}`);
+        });
       } catch (err) {
         setError("Failed to load submissions");
         console.error("Error fetching submissions", err);
