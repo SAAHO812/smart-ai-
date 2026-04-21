@@ -249,6 +249,11 @@ export default function PlagiarismCheck() {
                 <p className="text-gray-600 text-sm">
                   {submission.studentId?.email || "No email"}
                 </p>
+                {submission.studentId?.section && (
+                  <span className="inline-block mt-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded border border-blue-100">
+                    Class: {submission.studentId.section}
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-col sm:items-end gap-1">
@@ -306,7 +311,8 @@ export default function PlagiarismCheck() {
                         <ul className="list-disc list-inside pl-2">
                           {submission.matchedWith.map((match, index) => (
                             <li key={index} className="text-xs">
-                              {match.student?.name || "Other Student"} -{" "}
+                              {match.student?.name || "Other Student"} 
+                              {match.student?.section && ` (${match.student.section})`} -{" "}
                               {match.similarity}% match
                             </li>
                           ))}

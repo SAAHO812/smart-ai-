@@ -94,36 +94,47 @@ const checkAssignmentPlagiarism = async (req, res) => {
   const PLAGIARISM_THRESHOLD = 75;
 
   try {
-    const submissions = await Submission.find({ assignmentId })
-      .populate("studentId", "name email")
+    // 1. Fetch current submissions for this assignment
+    const currentSubmissions = await Submission.find({ assignmentId })
+      .populate("studentId", "name email section")
       .lean();
 
-    if (submissions.length < 2) {
+    if (currentSubmissions.length === 0) {
+      return res.status(404).json({ success: false, message: "No submissions found" });
+    }
+
+    // 2. Fetch ALL other submissions (Global History)
+    const otherSubmissions = await Submission.find({ assignmentId: { $ne: assignmentId } })
+      .populate("studentId", "name email section")
+      .lean();
+
+    // 3. Combine for comparison
+    const allSubmissions = [...currentSubmissions, ...otherSubmissions];
+
+    if (allSubmissions.length < 2) {
       return res.status(400).json({
         success: false,
-        message: "Need at least 2 submissions to compare",
+        message: "Need at least 2 submissions in the system to compare",
       });
     }
-    // console.log(submissions);
-    // Call Python API
-    console.log("📤 Sending to Python Plagiarism Check:", submissions.length, "files");
+
+    console.log(`📤 Sending to Python Plagiarism Check: ${currentSubmissions.length} current vs ${otherSubmissions.length} global files`);
+    
     const response = await axios.post(
       `${process.env.PYTHON_SCRIPT_URL}/checkPlagiarism`,
       {
-        file_urls: submissions.map((sub) => sub.fileUrl),
+        file_urls: allSubmissions.map((sub) => sub.fileUrl),
         threshold: PLAGIARISM_THRESHOLD,
       }
     );
 
     console.log("📥 Python Plagiarism Response Received.");
-    // console.log(response.data);
-
     const similarityResults = response.data.results || [];
     const now = new Date();
 
-    // Initialize scoreMap
+    // Initialize scoreMap for CURRENT submissions only
     const scoreMap = {};
-    submissions.forEach((_, index) => {
+    currentSubmissions.forEach((_, index) => {
       scoreMap[index] = { maxScore: 0, matches: [] };
     });
 
@@ -131,28 +142,32 @@ const checkAssignmentPlagiarism = async (req, res) => {
     similarityResults.forEach((result) => {
       const i1 = result.file1_index;
       const i2 = result.file2_index;
-      const similarity = result.similarity_score * 100; // Convert to percentage
+      const similarity = result.similarity_score * 100;
 
-      if (scoreMap[i1]) scoreMap[i1].maxScore = Math.max(scoreMap[i1].maxScore, similarity);
-      if (scoreMap[i2]) scoreMap[i2].maxScore = Math.max(scoreMap[i2].maxScore, similarity);
+      // Update maxScore and matches ONLY if the index belongs to currentSubmissions
+      const currentLen = currentSubmissions.length;
 
-      if (result.is_plagiarised && similarity >= PLAGIARISM_THRESHOLD) {
-        if (submissions[i2] && submissions[i2].studentId && scoreMap[i1]) {
-          scoreMap[i1].matches.push({
-            student: submissions[i2].studentId._id,
-            similarity,
-          });
+      const updateMatch = (targetIdx, sourceIdx) => {
+        if (targetIdx < currentLen) {
+          scoreMap[targetIdx].maxScore = Math.max(scoreMap[targetIdx].maxScore, similarity);
+          
+          if (result.is_plagiarised && similarity >= PLAGIARISM_THRESHOLD) {
+            const sourceSub = allSubmissions[sourceIdx];
+            if (sourceSub && sourceSub.studentId) {
+              scoreMap[targetIdx].matches.push({
+                student: sourceSub.studentId._id,
+                similarity,
+              });
+            }
+          }
         }
-        if (submissions[i1] && submissions[i1].studentId && scoreMap[i2]) {
-          scoreMap[i2].matches.push({
-            student: submissions[i1].studentId._id,
-            similarity,
-          });
-        }
-      }
+      };
+
+      updateMatch(i1, i2);
+      updateMatch(i2, i1);
     });
 
-    const bulkOps = submissions.map((sub, index) => ({
+    const bulkOps = currentSubmissions.map((sub, index) => ({
       updateOne: {
         filter: { _id: sub._id },
         update: {
@@ -173,8 +188,8 @@ const checkAssignmentPlagiarism = async (req, res) => {
 
     // Refetch and populate with matched students
     const updatedSubmissions = await Submission.find({ assignmentId })
-      .populate("studentId", "name email")
-      .populate("matchedWith.student", "name email")
+      .populate("studentId", "name email section")
+      .populate("matchedWith.student", "name email section")
       .sort({ plagiarismScore: -1 });
 
     // console.log(updatedSubmissions);

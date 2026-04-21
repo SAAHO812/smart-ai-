@@ -22,32 +22,36 @@ const seedData = async () => {
         department: "Science",
       },
       {
-        name: "Test Student",
+        name: "Student 1",
         email: "student@test.com",
         password: "password123",
         role: "student",
-        subjects: ["Mathematics", "Physics"],
+        subjects: ["Physics", "Computer Science"],
+        section: "Section A"
       },
       {
         name: "Student 2",
         email: "student2@test.com",
         password: "password123",
         role: "student",
-        subjects: ["Mathematics", "Physics"],
+        subjects: ["Physics", "Computer Science"],
+        section: "Section A"
       },
       {
         name: "Student 3",
         email: "student3@test.com",
         password: "password123",
         role: "student",
-        subjects: ["Mathematics", "Physics"],
+        subjects: ["Physics", "Computer Science"],
+        section: "Section B"
       },
       {
         name: "Student 4",
         email: "student4@test.com",
         password: "password123",
         role: "student",
-        subjects: ["Mathematics", "Physics"],
+        subjects: ["Physics", "Computer Science"],
+        section: "Section B"
       },
     ];
 

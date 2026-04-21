@@ -10,9 +10,19 @@ const connectDB = async () => {
     dbUrl = mongoServer.getUri();
   }
 
-  await mongoose
-    .connect(dbUrl)
-    .then(() => console.log(`DB Connected: ${dbUrl}`));
+  const connectOptions = {
+    serverSelectionTimeoutMS: 10000,
+    family: 4 // Force IPv4
+  };
+
+  try {
+    await mongoose.connect(dbUrl, connectOptions);
+    console.log(`DB Connected: ${dbUrl}`);
+  } catch (err) {
+    console.error("❌ DB Connection Error:", err.message);
+    console.log("Retrying in 5 seconds...");
+    setTimeout(connectDB, 5000);
+  }
 };
 
 export default connectDB;
