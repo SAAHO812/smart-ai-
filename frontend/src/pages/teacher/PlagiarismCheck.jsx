@@ -1,22 +1,57 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { BarChart, AlertTriangle, FileText, Loader2 } from "lucide-react";
+import { BarChart, AlertTriangle, FileText, Loader2, Book } from "lucide-react";
 
 export default function PlagiarismCheck() {
+  const [allSections, setAllSections] = useState(["1", "2", "3"]);
+  const [selectedSection, setSelectedSection] = useState("");
   const [assignments, setAssignments] = useState([]);
   const [selectedAssignment, setSelectedAssignment] = useState("");
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState({
     assignments: false,
     submissions: false,
+    sections: false,
     checkingAll: false,
     checkingAI: false,
   });
   const [error, setError] = useState(null);
   const token = localStorage.getItem("token");
-  // Fetch assignments created by the current teacher
+
+  // Show all submissions if no section selected, else filter by section
+  const filteredSubmissions = !selectedSection
+    ? submissions
+    : submissions.filter(s => String(s.studentId?.section) === String(selectedSection));
+
+  // Fetch all unique sections from students
+  useEffect(() => {
+    console.log("🛠️ fetchSections useEffect triggered, token exists:", !!token);
+    const fetchSections = async () => {
+      console.log("📡 Requesting sections from:", import.meta.env.VITE_BACKEND_URL || "http://localhost:5000");
+      setLoading(prev => ({ ...prev, sections: true }));
+      try {
+        const baseUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+        const res = await axios.get(`${baseUrl}/api/getSections`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        console.log("✅ Sections received:", res.data.sections);
+        setAllSections(res.data.sections || []);
+      } catch (err) {
+        console.error("❌ Error fetching sections", err);
+      } finally {
+        setLoading(prev => ({ ...prev, sections: false }));
+      }
+    };
+    if (token) fetchSections();
+  }, [token]);
+
+  // Fetch assignments
   useEffect(() => {
     const fetchAssignments = async () => {
+      if (!selectedSection) {
+        setAssignments([]);
+        return;
+      }
       setLoading((prev) => ({ ...prev, assignments: true }));
       setError(null);
       try {
@@ -41,7 +76,7 @@ export default function PlagiarismCheck() {
       }
     };
     fetchAssignments();
-  }, []);
+  }, [selectedSection]);
 
   // Fetch submissions when assignment is selected
   useEffect(() => {
@@ -169,26 +204,52 @@ export default function PlagiarismCheck() {
         </div>
       )}
 
-      {/* Assignment selector */}
+      {/* Section selector */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Assignment
+          Choose Section
         </label>
         <select
-          className="w-full p-2 border rounded-md"
-          value={selectedAssignment}
-          onChange={(e) => setSelectedAssignment(e.target.value)}
-          disabled={loading.assignments}
+          className="w-full p-2 border rounded-md bg-white shadow-sm"
+          value={selectedSection}
+          onChange={(e) => {
+            setSelectedSection(e.target.value);
+            setSelectedAssignment("");
+            setSubmissions([]);
+          }}
+          disabled={loading.sections}
         >
-          <option value="">-- Choose an assignment --</option>
-          {Array.isArray(assignments) &&
-            assignments.map((assignment) => (
-              <option key={assignment._id} value={assignment._id}>
-                {assignment.title} - {assignment.course} ({assignment.subject})
-              </option>
-            ))}
+          <option value="">-- Select Section --</option>
+          {allSections.map(section => (
+            <option key={section} value={section}>
+              Section {section}
+            </option>
+          ))}
         </select>
       </div>
+
+      {/* Assignment selector */}
+      {selectedSection && (
+        <div className="mb-6 animate-fade-in">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Assignment for Section {selectedSection}
+          </label>
+          <select
+            className="w-full p-2 border rounded-md"
+            value={selectedAssignment}
+            onChange={(e) => setSelectedAssignment(e.target.value)}
+            disabled={loading.assignments}
+          >
+            <option value="">-- Choose an assignment --</option>
+            {Array.isArray(assignments) &&
+              assignments.map((assignment) => (
+                <option key={assignment._id} value={assignment._id}>
+                  {assignment.title} - {assignment.course} ({assignment.subject})
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
 
       {/* Action Buttons */}
       {selectedAssignment && submissions.length > 0 && (
@@ -236,47 +297,62 @@ export default function PlagiarismCheck() {
 
       {/* Submissions list */}
       <div className="space-y-4">
-        {submissions.map((submission) => (
-          <div
-            key={submission._id}
-            className="p-4 border rounded-lg bg-white shadow-sm"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
-              <div>
-                <h3 className="font-semibold text-lg">
-                  {submission.studentId?.name || "Unknown Student"}
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  {submission.studentId?.email || "No email"}
-                </p>
-                {submission.studentId?.section && (
-                  <span className="inline-block mt-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded border border-blue-100">
-                    Class: {submission.studentId.section}
-                  </span>
-                )}
-              </div>
+        {filteredSubmissions.map((submission) => {
+          const sectionColors = {
+            "1": "border-blue-500 bg-blue-50/30",
+            "2": "border-purple-500 bg-purple-50/30",
+            "3": "border-green-500 bg-green-50/30",
+          };
+          const badgeColors = {
+            "1": "bg-blue-600 text-white",
+            "2": "bg-purple-600 text-white",
+            "3": "bg-green-600 text-white",
+          };
+          const section = submission.studentId?.section;
+          
+          return (
+            <div
+              key={submission._id}
+              className={`p-4 border-l-4 rounded-lg bg-white shadow-sm transition-all hover:shadow-md ${sectionColors[section] || 'border-gray-300'}`}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg text-gray-900">
+                      {submission.studentId?.name || "Unknown Student"}
+                    </h3>
+                    {section && (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${badgeColors[section] || 'bg-gray-600 text-white'}`}>
+                        Sec {section}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-600 text-sm italic">
+                    {submission.studentId?.email || "No email"}
+                  </p>
+                </div>
 
-              <div className="flex flex-col sm:items-end gap-1">
-                <span
-                  className={`px-2 py-1 text-xs sm:text-sm rounded-md ${
-                    submission.status === "flagged"
-                      ? "bg-red-100 text-red-800"
-                      : submission.status === "evaluated"
-                      ? "bg-green-100 text-green-800"
-                      : submission.status === "late"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  {submission.status}
-                </span>
-                {submission.grade && (
-                  <span className="text-sm font-medium">
-                    Grade: {submission.grade}
+                <div className="flex flex-col sm:items-end gap-1">
+                  <span
+                    className={`px-2 py-1 text-xs sm:text-sm rounded-md ${
+                      submission.status === "flagged"
+                        ? "bg-red-100 text-red-800"
+                        : submission.status === "evaluated"
+                        ? "bg-green-100 text-green-800"
+                        : submission.status === "late"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {submission.status}
                   </span>
-                )}
+                  {submission.grade && (
+                    <span className="text-sm font-medium">
+                      Grade: {submission.grade}
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
 
             <div className="flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4" />
@@ -366,8 +442,9 @@ export default function PlagiarismCheck() {
                 </span>
               </div>
             )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       {/* Empty state */}

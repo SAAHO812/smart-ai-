@@ -79,8 +79,8 @@ const getSubmissions = async (req, res) => {
 
   try {
     const submissions = await Submission.find({ assignmentId: id })
-      .populate("studentId", "name email")
-      .populate("matchedWith.student", "name email");
+      .populate("studentId", "name email section")
+      .populate("matchedWith.student", "name email section");
 
     res.json(submissions);
   } catch (err) {
@@ -258,8 +258,8 @@ const checkAIContent = async (req, res) => {
     await Submission.bulkWrite(bulkOps);
 
     const updatedSubmissions = await Submission.find({ assignmentId })
-      .populate("studentId", "name email")
-      .populate("matchedWith.student", "name email");
+      .populate("studentId", "name email section")
+      .populate("matchedWith.student", "name email section");
 
     res.status(200).json({
       success: true,
@@ -543,13 +543,25 @@ const getRecentSubmissions = async (req, res) => {
     const submissions = await Submission.find()
       .sort({ createdAt: -1 })
       .limit(15)
-      .populate("studentId", "name")
+      .populate("studentId", "name section")
       .populate("assignmentId", "title subject dueDate");
     res.json(submissions);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch recent submissions" });
   }
 };
+const getSections = async (req, res) => {
+  try {
+    console.log("🔍 Fetching unique sections for teacher:", req.user?._id);
+    const sections = await User.distinct("section", { role: "student", section: { $ne: null } });
+    console.log("✅ Sections found:", sections);
+    res.status(200).json({ success: true, sections: sections.sort() });
+  } catch (error) {
+    console.error("Error fetching sections:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 export {
   generateQuestions,
   getAllAssignments,
@@ -564,4 +576,5 @@ export {
   uploadAssignment,
   getRecentSubmissions,
   checkAIContent,
+  getSections,
 };

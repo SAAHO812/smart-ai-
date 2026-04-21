@@ -1,5 +1,5 @@
 import express from "express";
-import { checkAssignmentPlagiarism, evaluate, generateClassPerformance, generateQuestions, getAllAssignments, getAssignmentForSubject, getProfile, getRecentSubmissions, getSubjects, getSubmissions, uploadAnswerKey, uploadAssignment, checkAIContent } from "../controllers/teacherController.js";
+import { checkAssignmentPlagiarism, evaluate, generateClassPerformance, generateQuestions, getAllAssignments, getAssignmentForSubject, getProfile, getRecentSubmissions, getSubjects, getSubmissions, uploadAnswerKey, uploadAssignment, checkAIContent, getSections } from "../controllers/teacherController.js";
 import {authMiddleware} from "../middleware/authMiddleware.js"
 import multer from "multer";
 
@@ -20,4 +20,5 @@ teacherRoute.post("/evaluate/:assignmentId",authMiddleware,evaluate);
 teacherRoute.post("/uploadAnswerKey/:assignmentId",authMiddleware,upload.single("file"),uploadAnswerKey);
 teacherRoute.post('/uploadAssignment', authMiddleware,upload.single("file"),uploadAssignment);
 teacherRoute.get("/recentSubmissions",authMiddleware,getRecentSubmissions);
+teacherRoute.get("/getSections",authMiddleware,getSections);
 export default teacherRoute;
