@@ -29,6 +29,9 @@ class EvaluationRequest(BaseModel):
     file_urls: List[str]
     answer_key: str
 
+class AIContentRequest(BaseModel):
+    file_urls: List[str]
+
 class PlagiarismCheckRequest(BaseModel):
     file_urls: List[str]
     threshold: float = 75
@@ -160,6 +163,38 @@ async def generate_performance_report(request_data: PerformanceReportRequest):
             content=stdout, 
             headers={"Content-Type": "text/html; charset=utf-8"}
         )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Internal error: {str(e)}")
+
+@app.post("/detectAI")
+async def detect_ai_content_endpoint(request_data: AIContentRequest):
+    try:
+        input_data = {
+            "file_urls": request_data.file_urls
+        }
+        
+        process = subprocess.Popen(
+            ["python", "ai_detector.py"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(input=json.dumps(input_data))
+        
+        if process.returncode != 0:
+            error_msg = stderr.strip() if stderr else "Unknown error occurred"
+            raise HTTPException(500, f"AI detection failed: {error_msg}")
+        
+        try:
+            result = json.loads(stdout)
+            return result
+        except json.JSONDecodeError:
+            raise HTTPException(500, "Invalid response from AI detector")
             
     except HTTPException:
         raise

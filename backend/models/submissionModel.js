@@ -20,6 +20,7 @@ const submissionSchema = new mongoose.Schema(
     },
     grade: { type: Number },
     plagiarismScore: { type: Number },
+    aiContentScore: { type: Number },
     matchedWith: [
       {
         student: {

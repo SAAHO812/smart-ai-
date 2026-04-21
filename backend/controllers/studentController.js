@@ -2,6 +2,13 @@ import Submission from "../models/submissionModel.js";
 import { v2 as cloudinary } from "cloudinary";
 import Assignment from "../models/assignmentModel.js";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 dotenv.config();
 
 cloudinary.config({
@@ -59,27 +66,37 @@ export const submitAssignment = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded." });
     }
 
-    const result = await cloudinary.uploader.upload_stream(
-      { resource_type: "auto", folder: "Smart-Check-AI" },
-      async (error, cloudinaryResult) => {
-        if (error) {
-          return res
-            .status(500)
-            .json({ error: "Failed to upload to Cloudinary." });
-        }
-
-        const submission = new Submission({
-          assignmentId,
-          studentId,
-          fileUrl: cloudinaryResult.secure_url,
-          status:"submitted"
+    let fileUrl = "";
+    if (process.env.CLOUDINARY_API_KEY) {
+      const uploadToCloudinary = () => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: "auto", folder: "Smart-Check-AI" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
+            }
+          );
+          stream.end(req.file.buffer);
         });
-        await submission.save();
-        res.status(201).json({ success: true, submission });
-      }
-    );
+      };
+      fileUrl = await uploadToCloudinary();
+    } else {
+      // Local fallback
+      const fileName = `${Date.now()}-${req.file.originalname}`;
+      const filePath = path.join(__dirname, "..", "uploads", fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `http://localhost:5000/uploads/${fileName}`;
+    }
 
-    result.end(req.file.buffer);
+    const submission = new Submission({
+      assignmentId,
+      studentId,
+      fileUrl: fileUrl,
+      status: "submitted",
+    });
+    await submission.save();
+    res.status(201).json({ success: true, submission });
   } catch (err) {
     console.error("Error submitting assignment:", err);
     res.status(500).json({ error: "Internal server error." });

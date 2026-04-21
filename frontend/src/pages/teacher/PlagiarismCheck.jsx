@@ -10,6 +10,7 @@ export default function PlagiarismCheck() {
     assignments: false,
     submissions: false,
     checkingAll: false,
+    checkingAI: false,
   });
   const [error, setError] = useState(null);
   const token = localStorage.getItem("token");
@@ -111,6 +112,40 @@ export default function PlagiarismCheck() {
     }
   };
 
+  const handleCheckAIContent = async () => {
+    if (!selectedAssignment) return;
+
+    setLoading((prev) => ({ ...prev, checkingAI: true }));
+    setError(null);
+
+    try {
+      const res = await axios.post(
+        `${
+          import.meta.env.VITE_BACKEND_URL
+        }/api/checkAIContent/${selectedAssignment}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const updatedSubs = res.data?.data;
+
+      if (!Array.isArray(updatedSubs)) {
+        throw new Error("Invalid response format");
+      }
+
+      setSubmissions(updatedSubs);
+    } catch (err) {
+      setError("AI Content check failed");
+      console.error("Error checking AI content", err);
+    } finally {
+      setLoading((prev) => ({ ...prev, checkingAI: false }));
+    }
+  };
+
   const hasPendingSubmissions = submissions.some(
     (sub) => sub.status === "submitted"
   );
@@ -152,21 +187,38 @@ export default function PlagiarismCheck() {
         </select>
       </div>
 
-      {/* Check All Button */}
-      {selectedAssignment && hasPendingSubmissions && (
-        <div className="mb-6">
+      {/* Action Buttons */}
+      {selectedAssignment && submissions.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-4">
+          {hasPendingSubmissions && (
+            <button
+              onClick={handleCheckAllPlagiarism}
+              disabled={loading.checkingAll}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+            >
+              {loading.checkingAll ? (
+                <>
+                  <Loader2 className="animate-spin h-4 w-4" />
+                  Checking Plagiarism...
+                </>
+              ) : (
+                "Check for Plagiarism"
+              )}
+            </button>
+          )}
+
           <button
-            onClick={handleCheckAllPlagiarism}
-            disabled={loading.checkingAll}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+            onClick={handleCheckAIContent}
+            disabled={loading.checkingAI}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2"
           >
-            {loading.checkingAll ? (
+            {loading.checkingAI ? (
               <>
                 <Loader2 className="animate-spin h-4 w-4" />
-                Checking All Submissions...
+                Analyzing AI Content...
               </>
             ) : (
-              "Check All Pending Submissions for Plagiarism"
+              "Check for AI-Generated Content"
             )}
           </button>
         </div>
@@ -230,25 +282,67 @@ export default function PlagiarismCheck() {
               </a>
             </div>
 
-            {/* Plagiarism info */}
+            {/* Plagiarism and AI info */}
             {(submission.status === "checked" ||
-              submission.status === "flagged") && (
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <BarChart className="w-4 h-4" />
-                  Plagiarism Score: {submission.plagiarismScore}%
-                </div>
-                {submission.matchedWith?.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm font-medium">Similar Submissions:</p>
-                    <ul className="list-disc list-inside pl-4">
-                      {submission.matchedWith.map((student, index) => (
-                        <li key={index} className="text-sm">
-                          {student.student.name} ({student.student.email}) -{" "}
-                          {student.similarity}% match
-                        </li>
-                      ))}
-                    </ul>
+              submission.status === "flagged" ||
+              submission.aiContentScore !== undefined) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                {/* Plagiarism Section */}
+                {(submission.status === "checked" ||
+                  submission.status === "flagged") && (
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <BarChart className="w-4 h-4 text-blue-600" />
+                      Semantic Plagiarism: {submission.plagiarismScore}%
+                    </div>
+                    {submission.matchedWith?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs font-semibold text-gray-500">
+                          Similar Submissions:
+                        </p>
+                        <ul className="list-disc list-inside pl-2">
+                          {submission.matchedWith.map((match, index) => (
+                            <li key={index} className="text-xs">
+                              {match.student?.name || "Other Student"} -{" "}
+                              {match.similarity}% match
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AI Detection Section */}
+                {submission.aiContentScore !== undefined && (
+                  <div className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2 text-sm font-medium">
+                        <Loader2
+                          className={`w-4 h-4 ${
+                            submission.aiContentScore > 50
+                              ? "text-purple-600"
+                              : "text-green-600"
+                          }`}
+                        />
+                        AI Likelihood: {submission.aiContentScore.toFixed(1)}%
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                      <div
+                        className={`h-1.5 rounded-full ${
+                          submission.aiContentScore > 50
+                            ? "bg-purple-600"
+                            : "bg-green-600"
+                        }`}
+                        style={{ width: `${submission.aiContentScore}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-2">
+                      {submission.aiContentScore > 50
+                        ? "⚠️ High probability of AI generation"
+                        : "✅ Likely written by a human"}
+                    </p>
                   </div>
                 )}
               </div>

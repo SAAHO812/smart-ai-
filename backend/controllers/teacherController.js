@@ -4,6 +4,12 @@ import Submission from "../models/submissionModel.js";
 import axios from "axios";
 import User from "../models/userModel.js";
 import cloudinary from "../config/cloudinary.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const generateQuestions = async (req, res) => {
   const { topic, difficulty, questionTypes, numQuestions } = req.body;
   console.log("Request Body:", req.body);
@@ -189,6 +195,64 @@ const checkAssignmentPlagiarism = async (req, res) => {
   }
 };
 
+const checkAIContent = async (req, res) => {
+  const { assignmentId } = req.params;
+
+  try {
+    const submissions = await Submission.find({ assignmentId }).lean();
+
+    if (submissions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No submissions found for this assignment",
+      });
+    }
+
+    // Call Python API
+    const response = await axios.post(
+      `${process.env.PYTHON_SCRIPT_URL}/detectAI`,
+      {
+        file_urls: submissions.map((sub) => sub.fileUrl),
+      }
+    );
+
+    const aiResults = response.data.results;
+
+    // Update each submission with its AI score
+    const bulkOps = submissions.map((sub, index) => {
+      const result = aiResults.find((r) => r.url === sub.fileUrl);
+      return {
+        updateOne: {
+          filter: { _id: sub._id },
+          update: {
+            $set: {
+              aiContentScore: result ? result.ai_score * 100 : 0, // Convert to percentage
+            },
+          },
+        },
+      };
+    });
+
+    await Submission.bulkWrite(bulkOps);
+
+    const updatedSubmissions = await Submission.find({ assignmentId })
+      .populate("studentId", "name email")
+      .populate("matchedWith.student", "name email");
+
+    res.status(200).json({
+      success: true,
+      data: updatedSubmissions,
+    });
+  } catch (error) {
+    console.error("AI Content detection failed:", error);
+    res.status(500).json({
+      success: false,
+      message: error.response?.data?.detail || "AI Content detection failed",
+      error: error.message,
+    });
+  }
+};
+
 const evaluate = async (req, res) => {
   try {
     const assignmentId = req.params.assignmentId;
@@ -276,27 +340,37 @@ const uploadAnswerKey = async (req, res) => {
       return res.status(404).json({ error: "Assignment not found." });
     }
 
-    cloudinary.uploader
-      .upload_stream(
-        { resource_type: "auto", folder: "Smart-Check-AI" },
-        async (error, cloudinaryResult) => {
-          if (error) {
-            return res
-              .status(500)
-              .json({ error: "Failed to upload to Cloudinary." });
-          }
+    let fileUrl = "";
+    if (process.env.CLOUDINARY_API_KEY) {
+      const uploadToCloudinary = () => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: "auto", folder: "Smart-Check-AI" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
+            }
+          );
+          stream.end(req.file.buffer);
+        });
+      };
+      fileUrl = await uploadToCloudinary();
+    } else {
+      // Local fallback
+      const fileName = `${Date.now()}-${req.file.originalname}`;
+      const filePath = path.join(__dirname, "..", "uploads", fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `http://localhost:5000/uploads/${fileName}`;
+    }
 
-          assignment.answerKeyUrl = cloudinaryResult.secure_url;
-          await assignment.save();
+    assignment.answerKeyUrl = fileUrl;
+    await assignment.save();
 
-          res.status(201).json({
-            success: true,
-            message: "Answer key uploaded successfully!",
-            fileUrl: cloudinaryResult.secure_url,
-          });
-        }
-      )
-      .end(req.file.buffer);
+    res.status(201).json({
+      success: true,
+      message: "Answer key uploaded successfully!",
+      fileUrl: fileUrl,
+    });
   } catch (err) {
     console.error("Error uploading answer key:", err);
     res.status(500).json({ error: "Internal server error." });
@@ -396,23 +470,28 @@ const uploadAssignment = async (req, res) => {
       return res.status(400).json({ error: "No file uploaded." });
     }
 
-    const uploadToCloudinary = () => {
-      return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: "auto", folder: "Smart-Check-AI/Assignments" },
-          (error, result) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(result);
+    let fileUrl = "";
+    if (process.env.CLOUDINARY_API_KEY) {
+      const uploadToCloudinary = () => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { resource_type: "auto", folder: "Smart-Check-AI/Assignments" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
             }
-          }
-        );
-        stream.end(req.file.buffer);
-      });
-    };
-
-    const cloudinaryResult = await uploadToCloudinary();
+          );
+          stream.end(req.file.buffer);
+        });
+      };
+      fileUrl = await uploadToCloudinary();
+    } else {
+      // Local fallback
+      const fileName = `${Date.now()}-${req.file.originalname}`;
+      const filePath = path.join(__dirname, "..", "uploads", fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `http://localhost:5000/uploads/${fileName}`;
+    }
 
     // Save assignment details to DB
     const newAssignment = new Assignment({
@@ -421,7 +500,7 @@ const uploadAssignment = async (req, res) => {
       dueDate,
       description,
       course,
-      fileUrl: cloudinaryResult.secure_url,
+      fileUrl: fileUrl,
       createdBy: teacherId,
     });
 
@@ -458,4 +537,5 @@ export {
   evaluate,
   uploadAssignment,
   getRecentSubmissions,
+  checkAIContent,
 };

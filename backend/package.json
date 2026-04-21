@@ -25,6 +25,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@gradio/client": "^1.14.2"
+    "@gradio/client": "^1.14.2",
+    "mongodb-memory-server": "^11.0.1"
   }
 }

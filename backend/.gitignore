@@ -136,3 +136,4 @@ dist
 .pnp.*
 
 python/venv
+uploads/

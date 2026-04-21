@@ -1,5 +1,5 @@
 import express from "express";
-import { checkAssignmentPlagiarism, evaluate, generateClassPerformance, generateQuestions, getAllAssignments, getAssignmentForSubject, getProfile, getRecentSubmissions, getSubjects, getSubmissions, uploadAnswerKey, uploadAssignment } from "../controllers/teacherController.js";
+import { checkAssignmentPlagiarism, evaluate, generateClassPerformance, generateQuestions, getAllAssignments, getAssignmentForSubject, getProfile, getRecentSubmissions, getSubjects, getSubmissions, uploadAnswerKey, uploadAssignment, checkAIContent } from "../controllers/teacherController.js";
 import {authMiddleware} from "../middleware/authMiddleware.js"
 import multer from "multer";
 
@@ -11,6 +11,7 @@ teacherRoute.post("/generateQuestions",generateQuestions);
 teacherRoute.get("/getAssignment/:subject",authMiddleware,getAssignmentForSubject);
 teacherRoute.get("/getAssignments",authMiddleware,getAllAssignments);
 teacherRoute.post("/checkPlagiarism/:assignmentId",authMiddleware,checkAssignmentPlagiarism);
+teacherRoute.post("/checkAIContent/:assignmentId",authMiddleware,checkAIContent);
 teacherRoute.get("/getSubmissions/:id",authMiddleware,getSubmissions);
 teacherRoute.get("/getProfile",authMiddleware,getProfile);
 teacherRoute.get("/getSubjects",authMiddleware,getSubjects);
