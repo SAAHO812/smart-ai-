@@ -1,4 +1,5 @@
 import requests
+import sys
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, field_validator,Field
 from fastapi.responses import HTMLResponse
@@ -7,8 +8,24 @@ import subprocess
 import tempfile
 import os
 import json
-from pdfminer.high_level import extract_text
+from pdfminer.high_level import extract_text as pdfminer_extract
+from docx import Document
 import shutil
+
+def extract_text(file_path):
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == ".pdf":
+        return pdfminer_extract(file_path)
+    elif ext == ".docx":
+        doc = Document(file_path)
+        return "\n".join([para.text for para in doc.paragraphs])
+    else:
+        # Try as text file
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                return f.read()
+        except:
+            return ""
 
 app = FastAPI(title="Academic Analytics API")
 
@@ -50,7 +67,7 @@ async def check_plagiarism_endpoint(request_data: PlagiarismCheckRequest):
         }
         
         process = subprocess.Popen(
-            ["python", "check_plagiarism.py"],
+            [sys.executable, "check_plagiarism.py"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -86,28 +103,30 @@ async def evaluate_submissions(request: EvaluationRequest):
             response = requests.get(url, stream=True)
             response.raise_for_status()
 
-            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+            ext = os.path.splitext(url.split('?')[0])[1].lower() or ".pdf"
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
                 for chunk in response.iter_content(chunk_size=8192):
-                    temp_pdf.write(chunk)
+                    temp_file.write(chunk)
 
-            text = extract_text(temp_pdf.name)
+            text = extract_text(temp_file.name)
             answers = [line.strip() for line in text.strip().splitlines() if line.strip()]
             all_student_answers.append(answers)
-            os.unlink(temp_pdf.name)
+            os.unlink(temp_file.name)
 
         with open(student_text_path, "w",encoding="utf-8") as f:
-            for line in all_student_answers[0]:
+            for line in all_student_answers[0] if all_student_answers else []:
                 f.write(line + "\n")
 
         response = requests.get(request.answer_key, stream=True)
         response.raise_for_status()
 
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temp_pdf:
+        ext = os.path.splitext(request.answer_key.split('?')[0])[1].lower() or ".pdf"
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as temp_file:
             for chunk in response.iter_content(chunk_size=8192):
-                temp_pdf.write(chunk)
+                temp_file.write(chunk)
 
-        answer_key_text = extract_text(temp_pdf.name)
-        os.unlink(temp_pdf.name)
+        answer_key_text = extract_text(temp_file.name)
+        os.unlink(temp_file.name)
 
         with open(answer_key_path, "w", encoding="utf-8") as f:
             for line in answer_key_text.strip().splitlines():
@@ -115,7 +134,7 @@ async def evaluate_submissions(request: EvaluationRequest):
                     f.write(line.strip() + "\n")
 
         result = subprocess.run(
-            ["python", "evaluation.py"],
+            [sys.executable, "evaluation.py"],
             input=json.dumps({
                 "student_file": student_text_path,
                 "answer_key": answer_key_path
@@ -145,7 +164,7 @@ async def generate_performance_report(request_data: PerformanceReportRequest):
             "submissions": submissions_data
         }
         process = subprocess.Popen(
-            ["python", "allStudentPerformanceReport.py"],
+            [sys.executable, "allStudentPerformanceReport.py"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -177,7 +196,7 @@ async def detect_ai_content_endpoint(request_data: AIContentRequest):
         }
         
         process = subprocess.Popen(
-            ["python", "ai_detector.py"],
+            [sys.executable, "ai_detector.py"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -106,6 +106,7 @@ const checkAssignmentPlagiarism = async (req, res) => {
     }
     // console.log(submissions);
     // Call Python API
+    console.log("📤 Sending to Python Plagiarism Check:", submissions.length, "files");
     const response = await axios.post(
       `${process.env.PYTHON_SCRIPT_URL}/checkPlagiarism`,
       {
@@ -113,9 +114,11 @@ const checkAssignmentPlagiarism = async (req, res) => {
         threshold: PLAGIARISM_THRESHOLD,
       }
     );
+
+    console.log("📥 Python Plagiarism Response Received.");
     // console.log(response.data);
 
-    const similarityResults = response.data.results;
+    const similarityResults = response.data.results || [];
     const now = new Date();
 
     // Initialize scoreMap
@@ -130,18 +133,22 @@ const checkAssignmentPlagiarism = async (req, res) => {
       const i2 = result.file2_index;
       const similarity = result.similarity_score * 100; // Convert to percentage
 
-      scoreMap[i1].maxScore = Math.max(scoreMap[i1].maxScore, similarity);
-      scoreMap[i2].maxScore = Math.max(scoreMap[i2].maxScore, similarity);
+      if (scoreMap[i1]) scoreMap[i1].maxScore = Math.max(scoreMap[i1].maxScore, similarity);
+      if (scoreMap[i2]) scoreMap[i2].maxScore = Math.max(scoreMap[i2].maxScore, similarity);
 
       if (result.is_plagiarised && similarity >= PLAGIARISM_THRESHOLD) {
-        scoreMap[i1].matches.push({
-          student: submissions[i2].studentId._id,
-          similarity,
-        });
-        scoreMap[i2].matches.push({
-          student: submissions[i1].studentId._id,
-          similarity,
-        });
+        if (submissions[i2] && submissions[i2].studentId && scoreMap[i1]) {
+          scoreMap[i1].matches.push({
+            student: submissions[i2].studentId._id,
+            similarity,
+          });
+        }
+        if (submissions[i1] && submissions[i1].studentId && scoreMap[i2]) {
+          scoreMap[i2].matches.push({
+            student: submissions[i1].studentId._id,
+            similarity,
+          });
+        }
       }
     });
 
@@ -180,7 +187,8 @@ const checkAssignmentPlagiarism = async (req, res) => {
           flagged: updatedSubmissions.filter((s) => s.status === "flagged")
             .length,
           highestSimilarity: Math.max(
-            ...updatedSubmissions.map((s) => s.plagiarismScore || 0)
+            ...updatedSubmissions.map((s) => s.plagiarismScore || 0),
+            0
           ),
         },
       },
@@ -189,8 +197,7 @@ const checkAssignmentPlagiarism = async (req, res) => {
     console.error("Plagiarism check failed:", error);
     res.status(500).json({
       success: false,
-      message: error.response?.data?.detail || "Plagiarism check failed",
-      error: error.message,
+      message: "Plagiarism check failed. Error: " + (error.response?.data?.detail || error.message),
     });
   }
 };
@@ -380,9 +387,10 @@ const getProfile = async (req, res) => {
   try {
     const id = req.user._id;
     const profile = await User.findById(id);
-    res.status(200).json({ success: true, profile });
+    const studentCount = await User.countDocuments({ role: "student" });
+    res.status(200).json({ success: true, profile, studentCount });
   } catch (error) {
-    console.error("Error fetching assignments by teacher:", error);
+    console.error("Error fetching profile:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -509,7 +517,10 @@ const uploadAssignment = async (req, res) => {
     res.status(201).json({ success: true, assignment: newAssignment });
   } catch (err) {
     console.error("Error uploading assignment:", err);
-    res.status(500).json({ error: "Internal server error." });
+    res.status(500).json({ 
+      error: err.message || "Internal server error.",
+      details: err.errors // This will send back Mongoose validation errors
+    });
   }
 };
 const getRecentSubmissions = async (req, res) => {

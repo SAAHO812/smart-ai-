@@ -28,7 +28,10 @@ export default function PlagiarismCheck() {
             },
           }
         );
-        setAssignments(res.data?.assignments || []);
+        const sortedAssignments = (res.data?.assignments || []).sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        );
+        setAssignments(sortedAssignments);
       } catch (err) {
         setError("Failed to load assignments");
         console.error("Error fetching assignments", err);

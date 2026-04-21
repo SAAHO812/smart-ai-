@@ -27,7 +27,10 @@ export default function TeacherProfile() {
           }
         );
         console.log(response.data);
-        setData(response.data.profile);
+        setData({
+          ...response.data.profile,
+          studentCount: response.data.studentCount
+        });
       } catch (error) {
         console.log("Error loading profile");
         console.log(error);
@@ -238,8 +241,8 @@ export default function TeacherProfile() {
             <div className="mt-4 pt-4 border-t">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="text-2xl font-bold text-primary-600">156</div>
-                  <div className="text-sm text-gray-500">Students</div>
+                  <div className="text-2xl font-bold text-primary-600">{data.studentCount || 0}</div>
+                  <div className="text-sm text-gray-500">No. of Students</div>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-primary-600">24</div>

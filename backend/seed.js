@@ -28,6 +28,27 @@ const seedData = async () => {
         role: "student",
         subjects: ["Mathematics", "Physics"],
       },
+      {
+        name: "Student 2",
+        email: "student2@test.com",
+        password: "password123",
+        role: "student",
+        subjects: ["Mathematics", "Physics"],
+      },
+      {
+        name: "Student 3",
+        email: "student3@test.com",
+        password: "password123",
+        role: "student",
+        subjects: ["Mathematics", "Physics"],
+      },
+      {
+        name: "Student 4",
+        email: "student4@test.com",
+        password: "password123",
+        role: "student",
+        subjects: ["Mathematics", "Physics"],
+      },
     ];
 
     await User.insertMany(users);

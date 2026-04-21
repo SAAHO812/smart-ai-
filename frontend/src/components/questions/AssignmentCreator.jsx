@@ -55,9 +55,11 @@ export default function AssignmentCreator() {
     if (
       !assignmentDetails.title ||
       !assignmentDetails.subject ||
-      !assignmentDetails.file
+      !assignmentDetails.file ||
+      !assignmentDetails.dueDate ||
+      !assignmentDetails.course
     ) {
-      alert("Please fill all required fields and select a file.");
+      alert("Please fill in all required fields: Title, Subject, Due Date, Course, and File.");
       return;
     }
 

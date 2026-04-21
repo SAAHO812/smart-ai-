@@ -3,8 +3,10 @@ import json
 import requests
 import re
 import string
+import os
 from io import BytesIO
 from PyPDF2 import PdfReader
+from docx import Document
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -23,6 +25,13 @@ def extract_text_from_pdf(pdf_content: bytes) -> str:
     except Exception as e:
         raise Exception(f"PDF processing failed: {str(e)}")
 
+def extract_text_from_docx(docx_content: bytes) -> str:
+    try:
+        doc = Document(BytesIO(docx_content))
+        return "\n".join([para.text for para in doc.paragraphs])
+    except Exception as e:
+        raise Exception(f"DOCX processing failed: {str(e)}")
+
 def preprocess_text(text: str) -> str:
     text = text.lower().translate(str.maketrans('', '', string.punctuation))
     stopwords_set = {'the', 'and', 'is', 'in', 'it', 'to', 'of', 'for', 'a', 'an'}
@@ -35,7 +44,24 @@ def check_plagiarism_from_urls(file_urls, threshold=75):
         try:
             response = requests.get(url, timeout=15)
             response.raise_for_status()
-            raw_text = extract_text_from_pdf(response.content)
+            content = response.content
+            
+            # Identify file type from URL extension
+            ext = os.path.splitext(url.split('?')[0])[1].lower()
+            
+            if ext == '.pdf':
+                raw_text = extract_text_from_pdf(content)
+            elif ext == '.docx':
+                raw_text = extract_text_from_docx(content)
+            elif ext in ['.txt', '.md']:
+                raw_text = content.decode('utf-8', errors='replace')
+            else:
+                # Fallback: try PDF first, then text
+                try:
+                    raw_text = extract_text_from_pdf(content)
+                except:
+                    raw_text = content.decode('utf-8', errors='replace')
+            
             processed_text = preprocess_text(raw_text)
             if not processed_text:
                 raise Exception(f"No meaningful text extracted from {url}")
